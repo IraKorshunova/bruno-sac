@@ -53,7 +53,7 @@ if __name__ == "__main__":
         returns.append(mean)
 
     sns_plot = sns.lineplot(x=n_steps, y=returns, label='OracleSAC', color=color3)
- 
+
     # common
     sns_plot.set(xlabel='environment steps', ylabel='average return')
     xlabels = []

@@ -19,7 +19,7 @@ if __name__ == "__main__":
 
     # ORACLE
 
-    config_name_oracle = 'meta_cheetah_oracle'
+    config_name_oracle = 'meta_cheetah_dir_oracle'
     save_dir = misc_utils.find_model_metadata('metadata', config_name_oracle)
 
     with open(save_dir + '/test_rewards.pkl', 'rb') as f:

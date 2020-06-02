@@ -1,3 +1,4 @@
+import argparse
 import sys
 import time
 
@@ -58,7 +59,10 @@ def policy_nn(inputs, hidden_layers_sizes=(128, 128,), scope_name='actor_nn'):
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('--train', action='store_true', help='train or test (default: test)')
+    group = parser.add_mutually_exclusive_group(required=True)
+    group.add_argument('--train', dest='train', action='store_true')
+    group.add_argument('--test', dest='train', action='store_false')
+    parser.set_defaults(train=None)
     parser.add_argument('--oracle', action='store_true', help='use oracle (default: False)')
     args = parser.parse_args()
 

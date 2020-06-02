@@ -73,7 +73,7 @@ if __name__ == "__main__":
         sns_plot.fill_between(n_steps, lower_bound, upper_bound, alpha=.3, facecolors=color2)
 
     # ORACLE
-    config_name_oracle = 'meta_cheetah_oracle'
+    config_name_oracle = 'meta_cheetah_dir_oracle'
     save_dir = misc_utils.find_model_metadata('metadata', config_name_oracle)
     with open(save_dir + '/meta.pkl', 'rb') as f:
         d = pickle.load(f)

@@ -59,7 +59,10 @@ def policy_nn(inputs, hidden_layers_sizes=(128, 128,), scope_name='actor_nn'):
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('--train', action='store_true', help='train or test (default: test)')
+    group = parser.add_mutually_exclusive_group(required=True)
+    group.add_argument('--train', dest='train', action='store_true')
+    group.add_argument('--test', dest='train', action='store_false')
+    parser.set_defaults(train=None)
     parser.add_argument('--oracle', action='store_true', help='use oracle (default: False)')
     args = parser.parse_args()
 
@@ -143,4 +146,4 @@ if __name__ == "__main__":
     else:
         save_dir = misc_utils.find_model_metadata('metadata', config_name)
         algorithm.test(max_episode_length=1000, train_iteration=0, n_episodes=10, save_dir=save_dir,
-                       plot_n_steps=1000, dump_data=True, plot_diagnostics=True)
+                       plot_n_steps=1000, dump_data=True, plot_diagnostics=False)
