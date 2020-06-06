@@ -114,7 +114,7 @@ class MAFLayer:
         return l_scale, m_translation
 
     def forward_and_jacobian(self, x, sum_log_det_jacobians, condition=None):
-        with tf1.variable_scope(self.name, reuse=tf.AUTO_REUSE):
+        with tf1.variable_scope(self.name, reuse=tf1.AUTO_REUSE):
             if self.reverse_inputs_order:
                 x = tf.reverse(x, axis=[-1])
 
@@ -216,11 +216,11 @@ def masked_dense_wn(x, num_units, num_blocks, exclusive_mask, name, activation=N
             fan_in = int(x.get_shape()[1])
             V = mask * tf.get_variable(name='V', shape=[input_dim, num_units], dtype=tf.float32,
                                        initializer=masked_initializer, trainable=True)
-            g = tf.get_variable(name='g', shape=[num_units], dtype=tf.float32,
-                                initializer=tf.constant_initializer(np.sqrt(2. * fan_in / num_units)),
-                                trainable=True)
-            b = tf.get_variable(name='b', shape=[num_units], dtype=tf.float32,
-                                initializer=tf.constant_initializer(0.), trainable=use_bias)
+            g = tf1.get_variable(name='g', shape=[num_units], dtype=tf.float32,
+                                 initializer=tf.constant_initializer(np.sqrt(2. * fan_in / num_units)),
+                                 trainable=True)
+            b = tf1.get_variable(name='b', shape=[num_units], dtype=tf.float32,
+                                 initializer=tf.constant_initializer(0.), trainable=use_bias)
 
             x = tf.matmul(x, V)
             scaler = g / tf.norm(V + eps, axis=0)
@@ -273,13 +273,13 @@ def dense_wn(x, num_units, name, activation=None, use_bias=True, condition=None,
         if condition is None:
             fan_in = int(x.get_shape()[1])
             num_units = num_units if isinstance(num_units, int) else num_units.value
-            V = tf.get_variable(name='V', shape=[fan_in, num_units], dtype=tf.float32,
-                                initializer=Orthogonal(), trainable=True)
-            g = tf.get_variable(name='g', shape=[num_units], dtype=tf.float32,
-                                initializer=tf.constant_initializer(np.sqrt(2. * fan_in / num_units)),
-                                trainable=True)
-            b = tf.get_variable(name='b', shape=[num_units], dtype=tf.float32,
-                                initializer=tf.constant_initializer(0.), trainable=use_bias)
+            V = tf1.get_variable(name='V', shape=[fan_in, num_units], dtype=tf.float32,
+                                 initializer=Orthogonal(), trainable=True)
+            g = tf1.get_variable(name='g', shape=[num_units], dtype=tf.float32,
+                                 initializer=tf.constant_initializer(np.sqrt(2. * fan_in / num_units)),
+                                 trainable=True)
+            b = tf1.get_variable(name='b', shape=[num_units], dtype=tf.float32,
+                                 initializer=tf.constant_initializer(0.), trainable=use_bias)
 
             x = tf.matmul(x, V)
             scaler = g / tf.norm(V + eps, axis=0)

@@ -18,16 +18,16 @@ The code was used with the following settings:
 To train and then test BrunoSAC on Cheetah-Dir run:
 
 ```
-python meta-cheetah-dir.py --train 
-python meta-cheetah-dir.py --test
+python meta_cheetah_dir.py --train 
+python meta_cheetah_dir.py --test
 
 ```
 
 Similarly, for the oracle:
 
 ```
-python meta-cheetah-dir.py --train --oracle
-python meta-cheetah-dir.py --test --oracle
+python meta_cheetah_dir.py --train --oracle
+python meta_cheetah_dir.py --test --oracle
 
 ```
 
@@ -40,5 +40,3 @@ python -m plots.plot_test_cheetah_dir
 ```
 
 The same commands can be used with ```meta_cheetah_vel.py``` for the Cheetah-Vel experiments.
-
-

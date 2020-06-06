@@ -2,9 +2,9 @@ import numpy as np
 import tensorflow as tf
 import tensorflow.compat.v1 as tf1
 
-from utils import nn_utils
 from nn_bijective_layers import MAF
 from nn_gp_layer import GaussianRecurrentLayer
+from utils import nn_utils
 
 
 class BrunoNet(object):
@@ -84,7 +84,8 @@ class BrunoNet(object):
         condition = tf.concat([obs, actions], axis=-1)
         bwd_jacob = tf.zeros(batch_size * seq_len)
 
-        output, neq_jacob = self.maf.backward(z, bwd_jacob, condition=condition)
+        output, neg_jacob = self.maf.backward(z, bwd_jacob, condition=condition)
+        # the backward jacobian may not be safe to use since I don't remember testing it
 
         if self.extra_dims > 0:
             output = output[:, :-self.extra_dims]
@@ -92,28 +93,23 @@ class BrunoNet(object):
         # reshape sequences into their original shape (batch_size, seq_len, input_dim)
         if input_shape.shape == 3:
             output = tf.reshape(output, shape=(batch_size, seq_len, self.latent_ndim - self.extra_dims))
-            bwd_jacob = tf.reshape(bwd_jacob, (batch_size, seq_len))
+            neg_jacob = tf.reshape(neg_jacob, (batch_size, seq_len))
 
-        return output, bwd_jacob
+        return output, neg_jacob
 
     def get_sequence_model_likelihoods(self, obs, actions, next_obs, rewards):
 
         z, jacob = self.encode(obs=obs, actions=actions, next_obs=next_obs,
                                rewards=rewards)
 
-        log_probs_model = []
+        context_len = tf.random.uniform(shape=[], minval=self.min_max_context_len[0],
+                                        maxval=self.min_max_context_len[1], dtype=tf.int32)
+        self.gp_layer.reset()
+        self.gp_layer.bulk_update_distribution(z[:, :context_len, :])
 
-        with tf.variable_scope("one_step", reuse=tf.AUTO_REUSE):
-            self.gp_layer.reset()
+        llp_model = self.gp_layer.get_sequence_log_likelihood(z)
 
-            context_len = tf.random.uniform(shape=[], minval=self
-                                            .min_max_context_len[0], maxval=self.min_max_context_len[1], dtype=tf.int32)
-            self.gp_layer.bulk_update_distribution(z[:, :context_len, :])
-
-            llp_model = self.gp_layer.get_sequence_log_likelihood(z)
-            log_probs_model.append(llp_model + jacob)
-
-        log_probs_model = tf.concat(log_probs_model, axis=1)
+        log_probs_model = llp_model + jacob
         return log_probs_model
 
     def get_states_given_sequence(self, obs, actions, next_obs, rewards):

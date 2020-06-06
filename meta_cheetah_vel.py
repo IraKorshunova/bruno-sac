@@ -139,8 +139,10 @@ if __name__ == "__main__":
         sys.stdout = misc_utils.Logger('logs/%s.log' % exp_id)
         sys.stderr = sys.stdout
 
-        algorithm.train(max_episodes=2500, n_exploration_episodes=250,
-                        min_collected_episodes=20,
+        # when training the oracle, allow for longer training so that the learning curves have the same length
+        algorithm.train(max_episodes=2500 if not args.oracle else int(2500 * 3.32),
+                        n_exploration_episodes=250 if not args.oracle else int(250 * 3.32),
+                        min_collected_episodes=20 if not args.oracle else int(20 * 3.32),
                         max_episode_length=200, max_test_episode_length=200,
                         n_updates=200,
                         batch_size_episodes=batch_size, batch_seq_len=seq_len,
