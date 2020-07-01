@@ -118,12 +118,24 @@ class GaussianRecurrentLayer(object):
         log_pdf = -0.5 * tf.log(2. * np.pi * var) - tf.square(observation - mu) / (2. * var)
         return tf.reduce_sum(log_pdf, -1)
 
-    def sample(self):
+    def sample(self, nr_samples=1):
         mu, var, _ = self.current_state
-        return mu + tf.sqrt(var) * tf.random_normal(shape=tf.shape(mu), seed=self.seed_rng.randint(317070),
-                                                    name="Normal_sampler")
+        if nr_samples == 1:
+            return mu + tf.sqrt(var) * tf.random_normal(shape=tf.shape(mu), seed=self.seed_rng.randint(317070),
+                                                        name="Normal_sampler")
+        else:
+            return mu[None, :, :] + tf.sqrt(var[None, :, :]) * tf.random_normal(
+                shape=(nr_samples, tf.shape(mu)[0], self.ndim),
+                seed=self.seed_rng.randint(317070),
+                name="Normal_sampler")
 
-    def sample_given_state(self, state):
-        mu, var, _ = state
-        return mu + tf.sqrt(var) * tf.random_normal(shape=tf.shape(mu), seed=self.seed_rng.randint(317070),
-                                                    name="Normal_sampler")
+    # def sample_given_state(self, state, n_samples=1):
+    #     mu, var, _ = state
+    #     if n_samples == 1:
+    #         return mu + tf.sqrt(var) * tf.random_normal(shape=tf.shape(mu), seed=self.seed_rng.randint(317070),
+    #                                                     name="Normal_sampler")
+    #     else:
+    #         return mu[:, :, None] + tf.sqrt(var[:, :, None]) * tf.random_normal(
+    #             shape=(tf.shape(mu)[0], self.ndim, n_samples),
+    #             seed=self.seed_rng.randint(317070),
+    #             name="Normal_sampler")
