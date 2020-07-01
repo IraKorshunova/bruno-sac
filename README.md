@@ -1,6 +1,11 @@
 # BrunoSAC
 
 
+**Exchangeable Models in Meta Reinforcement Learning**<br>
+I. Korshunova, J. Degrave, J. Dambre, A. Gretton, F. Huszár<br>
+_Lifelong Learning Workshop at ICML 2020_
+
+
 ### Requirements
 
 The code was used with the following settings:
@@ -40,3 +45,7 @@ python -m plots.plot_test_cheetah_dir
 ```
 
 The same commands can be used with ```meta_cheetah_vel.py``` for the Cheetah-Vel experiments.
+
+### Questions?
+
+Please send me an email at `irene.korshunova@gmail.com`, and I'll be happy to answer.

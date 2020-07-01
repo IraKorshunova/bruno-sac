@@ -20,3 +20,12 @@ for v in defaults.half_cheetah_velocities:
     env_entry_point = "envs.half_cheetah_vel:HalfCheetahVelEnv"
     kwargs = {"goal_velocity": v}
     register(id=env_id, entry_point=env_entry_point, kwargs=kwargs)
+
+""" Cartpole  """
+
+for d in defaults.cartpole_params_train + defaults.cartpole_params_test:
+    d_str = env_utils.param_to_str(d)
+    env_id = "CartpoleEnv_{}-v0".format(d_str)
+    env_entry_point = "envs.cartpole:CartpoleEnv"
+    kwargs = {"mass": d[0], 'length': d[1]}
+    register(id=env_id, entry_point=env_entry_point, kwargs=kwargs)

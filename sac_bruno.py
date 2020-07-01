@@ -280,6 +280,8 @@ class BrunoSAC:
             ckpt_file = save_dir + 'params.ckpt'
             print('restoring parameters from', ckpt_file)
             self.saver.restore(self.sess, tf.train.latest_checkpoint(save_dir))
+            gp_param_vals = self.sess.run([self.bruno_model.gp_layer.var, self.bruno_model.gp_layer.corr])
+            print('GP var and corr', gp_param_vals)
 
         all_returns = []
         returns = defaultdict(list)

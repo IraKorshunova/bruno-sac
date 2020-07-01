@@ -368,13 +368,6 @@ class OracleSAC:
                     r = self.reshape_env2bruno(r)
                     a = self.reshape_env2bruno(a)
                     done_flag = np.float32(np.array([done_flag]))
-                    # print('------------')
-                    # print(current_obs.shape)
-                    # print(a.shape)
-                    # print(next_obs.shape)
-                    # print(r.shape)
-                    # print(done_flag.shape)
-                    # print(env_params.shape)
 
                     if not done_flag:
                         episode_history.append(current_obs, a, next_obs, r, done_flag, env_params)
