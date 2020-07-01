@@ -2,7 +2,39 @@ import numpy as np
 import tensorflow as tf
 import tensorflow.compat.v1 as tf1
 
-from utils.nn_utils import Orthogonal, int_shape
+MAX_LOGSCALE = 2.5
+
+
+class Orthogonal(object):
+    """
+    Lasagne orthogonal init from OpenAI
+    """
+
+    def __init__(self, scale=1.):
+        self.scale = scale
+
+    def __call__(self, shape, dtype=None, partition_info=None):
+        shape = tuple(shape)
+        if len(shape) == 2:
+            flat_shape = shape
+        elif len(shape) == 4:  # assumes NHWC
+            flat_shape = (np.prod(shape[:-1]), shape[-1])
+        else:
+            raise NotImplementedError
+        a = np.random.normal(0.0, 1.0, flat_shape)
+        u, _, v = np.linalg.svd(a, full_matrices=False)
+        q = u if u.shape == flat_shape else v  # pick the one with the correct shape
+        q = q.reshape(shape)
+        return (self.scale * q[:shape[0], :shape[1]]).astype(np.float32)
+
+    def get_config(self):
+        return {
+            'scale': self.scale
+        }
+
+
+def int_shape(x):
+    return list(x.get_shape())
 
 
 class MAF:
@@ -19,7 +51,7 @@ class MAF:
         for i in range(n_maf_layers):
             self.maf_layers.append(MAFLayer(input_size=input_size, name='%s_%s' % (name, i),
                                             nonlinearity=nonlinearity, n_units=n_units,
-                                            reverse_inputs_order=True if i % 2 == 0 else False,
+                                            reverse_inputs_order=False if i % 2 == 0 else True,
                                             weight_norm=weight_norm, debug_mode=debug_mode))
 
     def forward_and_jacobian(self, x, sum_log_det_jacobians, condition=None):
@@ -56,8 +88,10 @@ class MAFLayer:
             return self.function_s_t_wn(input, condition)
         else:
 
-            condition = dense(condition, num_units=self.n_units, name='condition_layer',
-                              nonlinearity=self.nonlinearity)
+            if condition is not None:
+                condition = dense(condition, num_units=self.n_units, name='condition_layer',
+                                  nonlinearity=self.nonlinearity)
+
             y = masked_dense(input, num_units=self.n_units, num_blocks=self.input_dim,
                              activation=self.nonlinearity,
                              kernel_initializer=Orthogonal(),
@@ -66,8 +100,16 @@ class MAFLayer:
                              condition=condition,
                              name='d1')
 
+            # y = masked_dense(y, num_units=self.n_units, num_blocks=self.input_dim,
+            #                  activation=self.nonlinearity,
+            #                  exclusive_mask=False,
+            #                  kernel_initializer=Orthogonal(),
+            #                  bias_initializer=tf.constant_initializer(0.01),
+            #                  condition=condition,
+            #                  name='d2', )
+
             l_scale = masked_dense(y, num_units=self.input_dim, num_blocks=self.input_dim,
-                                   activation=tf.tanh,
+                                   activation=lambda x: MAX_LOGSCALE * tf.tanh(x),
                                    exclusive_mask=False,
                                    kernel_initializer=tf.constant_initializer(
                                        0.) if not self.debug_mode else Orthogonal(),
@@ -86,9 +128,9 @@ class MAFLayer:
             return l_scale, m_translation
 
     def function_s_t_wn(self, input, condition):
-
-        condition = dense_wn(condition, num_units=self.n_units, name='condition_layer',
-                             activation=self.nonlinearity)
+        if condition is not None:
+            condition = dense_wn(condition, num_units=self.n_units, name='condition_layer',
+                                 activation=self.nonlinearity)
 
         y = masked_dense_wn(input, num_units=self.n_units, num_blocks=self.input_dim,
                             activation=self.nonlinearity,
@@ -96,8 +138,14 @@ class MAFLayer:
                             condition=condition,
                             name='d1')
 
+        # y = masked_dense_wn(y, num_units=self.n_units, num_blocks=self.input_dim,
+        #                     activation=self.nonlinearity,
+        #                     exclusive_mask=False,
+        #                     condition=condition,
+        #                     name='d2')
+
         l_scale = masked_dense(y, num_units=self.input_dim, num_blocks=self.input_dim,
-                               activation=tf.tanh,
+                               activation=lambda x: MAX_LOGSCALE * tf.tanh(x),
                                exclusive_mask=False,
                                kernel_initializer=tf.constant_initializer(0.) if not self.debug_mode else Orthogonal(),
                                bias_initializer=tf.constant_initializer(0.), condition=condition,
@@ -298,3 +346,160 @@ def dense_wn(x, num_units, name, activation=None, use_bias=True, condition=None,
             if activation is not None:
                 output = activation(output)
             return output
+
+
+class NVPLayer:
+    def __init__(self, mask_type, input_size, name='NVPLayer', nonlinearity=tf.nn.relu, n_units=1024,
+                 weight_norm=True, noise_dim=0):
+        self.mask_type = mask_type
+        self.name = name
+        self.nonlinearity = nonlinearity
+        self.n_units = n_units
+        self.weight_norm = weight_norm
+        self.input_size = input_size
+        self.noise_dim = noise_dim
+
+    def get_mask(self, xs, mask_type):
+
+        assert self.mask_type in ['even', 'odd', 'noise_dec', 'noise_enc']
+
+        ndim = self.input_size
+
+        b = tf.range(ndim)
+        if 'even' in mask_type:
+            b = tf.cast(tf.mod(b, 2), tf.float32)
+        elif 'odd' in mask_type:
+            b = 1. - tf.cast(tf.mod(b, 2), tf.float32)
+        elif 'noise_enc' in mask_type:
+            b = tf.concat([tf.ones([ndim - self.noise_dim]), tf.zeros([self.noise_dim])], axis=-1)
+        elif 'noise_dec' in mask_type:
+            b = tf.concat([tf.zeros([ndim - self.noise_dim]), tf.ones([self.noise_dim])], axis=-1)
+
+        b_mask = tf.ones((xs[0], ndim))
+        b_mask = b_mask * b
+
+        b_mask = tf.reshape(b_mask, xs)
+
+        return b_mask
+
+    def function_s_t(self, x, mask, condition, name='function_s_t_dense'):
+        if self.weight_norm:
+            return self.function_s_t_wn(x, mask, condition, name + '_wn')
+        else:
+            with tf.variable_scope(name):
+                xs = tf.shape(x)
+                y = tf.reshape(x, (xs[0], -1))
+                ndim = tf.shape(y)[-1]
+
+                y = dense(y, num_units=self.n_units, nonlinearity=self.nonlinearity,
+                          kernel_initializer=Orthogonal(),
+                          bias_initializer=tf.constant_initializer(0.01), name='d1', condition=condition)
+                y = dense(y, num_units=self.n_units, nonlinearity=self.nonlinearity,
+                          kernel_initializer=Orthogonal(),
+                          bias_initializer=tf.constant_initializer(0.01), name='d2', condition=condition)
+
+                l_scale = dense(y, num_units=ndim,
+                                nonlinearity=lambda x: MAX_LOGSCALE * tf.tanh(x),
+                                kernel_initializer=tf.constant_initializer(0.),
+                                bias_initializer=tf.constant_initializer(0.), name='d_scale', condition=condition)
+                l_scale = tf.reshape(l_scale, shape=xs)
+                l_scale *= 1 - mask
+
+                m_translation = dense(y, num_units=ndim, nonlinearity=None,
+                                      kernel_initializer=tf.constant_initializer(0.),
+                                      bias_initializer=tf.constant_initializer(0.), name='d_translate',
+                                      condition=condition)
+                m_translation = tf.reshape(m_translation, shape=xs)
+                m_translation *= 1 - mask
+
+                return l_scale, m_translation
+
+    def function_s_t_wn(self, x, mask, condition, name):
+        with tf.variable_scope(name):
+            y = dense_wn(x, num_units=self.n_units, name='d1', activation=self.nonlinearity, condition=condition)
+            y = dense_wn(y, num_units=self.n_units, name='d2', activation=self.nonlinearity, condition=condition)
+
+            l_scale = dense(y, num_units=self.input_size,
+                            nonlinearity=lambda x: MAX_LOGSCALE * tf.tanh(x),
+                            kernel_initializer=tf.constant_initializer(0.),
+                            bias_initializer=tf.constant_initializer(0.), name='d_scale', condition=condition)
+            l_scale *= 1 - mask
+
+            m_translation = dense(y, num_units=self.input_size, nonlinearity=None,
+                                  kernel_initializer=tf.constant_initializer(0.),
+                                  bias_initializer=tf.constant_initializer(0.), name='d_translate',
+                                  condition=condition)
+            m_translation *= 1 - mask
+
+            return l_scale, m_translation
+
+    def forward_and_jacobian(self, x, sum_log_det_jacobians, condition=None):
+        with tf1.variable_scope(self.name, reuse=tf.AUTO_REUSE):
+            xs = tf.shape(x)
+            b = self.get_mask(xs, self.mask_type)
+
+            # masked half of x
+            x1 = x * b
+            l, m = self.function_s_t(x1, b, condition)
+            y = x1 + tf.multiply(1. - b, x * tf.exp(l) + m)
+            log_det_jacobian = tf.reduce_sum(l, 1)
+            sum_log_det_jacobians += log_det_jacobian
+
+            return y, sum_log_det_jacobians
+
+    def backward(self, y, sum_log_det_jacobians=None, condition=None):
+        with tf1.variable_scope(self.name, reuse=tf.AUTO_REUSE):
+            ys = tf.shape(y)
+            b = self.get_mask(ys, self.mask_type)
+
+            y1 = y * b
+            l, m = self.function_s_t(y1, b, condition)
+            x = y1 + tf.multiply(y * (1. - b) - m, tf.exp(-l))
+
+            if sum_log_det_jacobians is not None:
+                log_det_jacobian = -1. * tf.reduce_sum(l, 1)
+                sum_log_det_jacobians += log_det_jacobian
+                return x, sum_log_det_jacobians
+            else:
+                return x
+
+
+class NVP:
+    def __init__(self, input_size, n_maf_layers, name='NVP', nonlinearity=tf.nn.relu, n_units=32,
+                 weight_norm=True, debug_mode=None, noise_dim=None, tie_weights=False):
+
+        self.input_dim = input_size
+        self.n_nvp_layers = n_maf_layers
+
+        self.nvp_layers = []
+
+        for i in range(n_maf_layers):
+            if noise_dim is None:
+                mask_type = 'even' if i % 2 == 0 else 'odd'
+            else:
+                mask_type = 'noise_enc' if i % 2 == 0 else 'noise_dec'
+
+            if not tie_weights:
+                layer_name = '%s_%s' % (name, i)
+            else:
+                layer_name = '%s_%s' % (name, mask_type)
+
+            self.nvp_layers.append(NVPLayer(input_size=input_size, name=layer_name,
+                                            nonlinearity=nonlinearity, n_units=n_units,
+                                            mask_type=mask_type,
+                                            weight_norm=weight_norm, noise_dim=noise_dim))
+
+    def forward_and_jacobian(self, x, sum_log_det_jacobians, condition=None):
+        for i in range(self.n_nvp_layers):
+            x, sum_log_det_jacobians = self.nvp_layers[i].forward_and_jacobian(x, sum_log_det_jacobians, condition)
+        return x, sum_log_det_jacobians
+
+    def backward(self, x, sum_log_det_jacobians=None, condition=None):
+        if sum_log_det_jacobians is None:
+            for i in reversed(range(self.n_nvp_layers)):
+                x = self.nvp_layers[i].backward(x, sum_log_det_jacobians, condition)
+            return x
+        else:
+            for i in reversed(range(self.n_nvp_layers)):
+                x, sum_log_det_jacobians = self.nvp_layers[i].backward(x, sum_log_det_jacobians, condition)
+            return x, sum_log_det_jacobians
