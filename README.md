@@ -48,4 +48,4 @@ The same commands can be used with ```meta_cheetah_vel.py``` for the Cheetah-Vel
 
 ### Questions?
 
-Please send me an email at `irene.korshunova@gmail.com`, and I'll be happy to answer.
+Please send an email to `irene.korshunova@gmail.com`, and I'll be happy to answer.
