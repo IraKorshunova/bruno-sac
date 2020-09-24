@@ -84,7 +84,7 @@ with tf.Session() as sess:
         print('test')
         print('num latents, num hidden', num_latents, HIDDEN_SIZE)
         losses = []
-        for i in range(1000):
+        for i in range(100):
             loss_value, pred_y, std_y, target_y, whole_query = sess.run(
                 [loss, mu, sigma, data_test.target_y, data_test.query])
             print(i, loss_value)

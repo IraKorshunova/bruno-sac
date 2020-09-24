@@ -26,6 +26,10 @@ def plot_functions(target_x, target_y, context_x, context_y, pred_y, std, plot_n
     if y_limits is None:
         y_limits = [min(pred_y[0]), max(pred_y[0])]
 
+    mse = np.mean((target_y[0] - pred_y[0]) ** 2)
+    print('MSE:', mse)
+    print('std', np.max(std), np.min(std))
+
     # Plot everything
     if int(y_limits[1]) == 3:
         f = plt.figure(figsize=(583. / 100, 442. * 1.5 / 100))
@@ -34,8 +38,8 @@ def plot_functions(target_x, target_y, context_x, context_y, pred_y, std, plot_n
     plt.plot(context_x[0], context_y[0], 'ko', markersize=12)
     plt.fill_between(
         target_x[0, :, 0],
-        pred_y[0, :, 0] - std[0, :, 0],
-        pred_y[0, :, 0] + std[0, :, 0],
+        pred_y[0, :, 0] - 2. * std[0, :, 0],
+        pred_y[0, :, 0] + 2. * std[0, :, 0],
         alpha=0.7,
         facecolor='#65c9f7',
         interpolate=True)
@@ -46,7 +50,14 @@ def plot_functions(target_x, target_y, context_x, context_y, pred_y, std, plot_n
     plt.ylim(y_limits)
     plt.xlim(x_limits)
 
+    ax = plt.gca()
+    x_text = 0.22 if int(y_limits[1]) == 3 else 0.2
+    y_text = 0.95 if int(y_limits[1]) == 3 else 0.93
+    plt.text(x_text, y_text, "MSE:{:.3f}".format(round(mse, 3)), fontsize=25, ha='center', va='center',
+             transform=ax.transAxes)
+
     plt.grid('off')
+    plt.grid(False)
     if len(context_x[0]) == 1:
         plt.ylabel('x', fontsize=25)
     if int(y_limits[1]) >= 3:
@@ -54,7 +65,6 @@ def plot_functions(target_x, target_y, context_x, context_y, pred_y, std, plot_n
 
     plt.savefig(plot_name, bbox_inches='tight')
     plt.close()
-
 
 def plot_learning_curves(x, y, plot_name):
     plt.plot(x, y, 'b')

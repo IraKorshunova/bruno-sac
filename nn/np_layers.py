@@ -181,8 +181,9 @@ class LatentModel(object):
     """The (A)NP model."""
 
     def __init__(self, latent_encoder_output_sizes, num_latents,
-                 decoder_output_sizes, use_deterministic_path=True,
-                 deterministic_encoder_output_sizes=None, attention=None):
+                 decoder_output_sizes, use_deterministic_path=False,
+                 deterministic_encoder_output_sizes=None, attention=None,
+                 n_test_samples=100):
         """Initialises the model.
 
         Args:
@@ -207,6 +208,7 @@ class LatentModel(object):
         if use_deterministic_path:
             self._deterministic_encoder = DeterministicEncoder(
                 deterministic_encoder_output_sizes, attention)
+        self.n_test_samples = n_test_samples
 
     def __call__(self, query, num_targets, target_y=None, n_context=None):
         """Returns the predicted mean and variance at the target points.
@@ -244,22 +246,17 @@ class LatentModel(object):
         # For training, when target_y is available, use targets for latent encoder.
         # Note that targets contain contexts by design.
         if target_y is None:
-            latent_rep = prior.sample()
+            latent_rep = prior.sample(self.n_test_samples)
+            latent_rep = tf.tile(latent_rep, [1, num_targets, 1])
+            target_x = tf.tile(target_x, [self.n_test_samples, 1, 1])
         # For testing, when target_y unavailable, use contexts for latent encoder.
         else:
             posterior = self._latent_encoder(target_x, target_y)
             latent_rep = posterior.sample()
-        latent_rep = tf.tile(tf.expand_dims(latent_rep, axis=1),
+            latent_rep = tf.tile(tf.expand_dims(latent_rep, axis=1),
                              [1, num_targets, 1])
-        if self._use_deterministic_path:
-            deterministic_rep = self._deterministic_encoder(context_x, context_y,
-                                                            target_x)
-            # representation = tf.concat([deterministic_rep, latent_rep], axis=-1)
-            representation = deterministic_rep
-        else:
-            representation = latent_rep
 
-        dist, mu, sigma = self._decoder(representation, target_x)
+        dist, mu, sigma = self._decoder(latent_rep, target_x)
 
         # If we want to calculate the log_prob for training we will make use of the
         # target_y. At test time the target_y is not available so we return None.

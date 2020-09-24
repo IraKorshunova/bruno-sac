@@ -5,7 +5,7 @@ from nn.np_layers import LatentModel, Attention
 from utils.data_generator import SineCurvesReader
 from utils.plots import plot_functions
 
-TRAIN = True
+TRAIN = False
 TRAINING_ITERATIONS = 100000
 MAX_CONTEXT_POINTS = 50
 PLOT_AFTER = 10000
@@ -15,9 +15,10 @@ SAVE_DIR = 'metadata_np_scale'
 
 #  ------------ some manuals for test plots
 TEST_CONTEXT = 100
-TEST_SCALE = (0., 2.)  # 0.5 or 1.5 or 3.
-PLOT_Y_LIMITS = (-2.2, 2.2)  # (-3.2, 3.2)
+TEST_SCALE = 1.5  # 0.5 or 1.5 or 3.
+PLOT_Y_LIMITS = (-2.2, 2.2) if TEST_SCALE < 3 else (-3.2, 3.2)
 N_TEST_PLOTS = 1
+N_TEST_SAMPLES = 2500
 
 tf.reset_default_graph()
 tf.set_random_seed(317070)
@@ -49,7 +50,8 @@ attention = Attention(rep='identity', output_sizes=None, att_type='uniform')
 # Define the model
 model = LatentModel(latent_encoder_output_sizes, num_latents,
                     decoder_output_sizes, use_deterministic_path,
-                    deterministic_encoder_output_sizes, attention=attention)
+                    deterministic_encoder_output_sizes, attention=attention,
+                    n_test_samples=N_TEST_SAMPLES)
 
 # Define the loss
 _, _, log_prob, _, loss = model(data_train.query, data_train.num_total_points,
@@ -90,7 +92,7 @@ with tf.Session() as sess:
         print('test')
         print('num latents, num hidden', num_latents, HIDDEN_SIZE)
         losses = []
-        for i in range(1000):
+        for i in range(100):
             loss_value, pred_y, std_y, target_y, whole_query = sess.run(
                 [loss, mu, sigma, data_test.target_y, data_test.query])
             print(i, loss_value)
@@ -112,9 +114,20 @@ with tf.Session() as sess:
         saver.restore(sess, tf.train.latest_checkpoint(SAVE_DIR))
 
         for it in range(N_TEST_PLOTS):
-            loss_value, pred_y, std_y, target_y, whole_query = sess.run(
+            loss_value, mean_y, std_y, target_y, whole_query = sess.run(
                 [loss, mu, sigma, data_test.target_y, data_test.query])
-            print(it, loss_value)
+
+            mean_preds_y, stds_y = [], []
+            for i in range(mean_y.shape[1]):
+                samples = []
+                for j in range(mean_y.shape[0]):
+                    samples.append(np.random.normal(loc=mean_y[j, i], scale=std_y[j, i]))
+                samples = np.asarray(samples).flatten()
+                mean_preds_y.append(np.mean(samples))
+                stds_y.append(np.std(samples))
+
+            pred_y = np.asarray(mean_preds_y)[None, :, None]
+            std_y = np.asarray(stds_y)[None, :, None]
 
             (context_x, context_y), target_x = whole_query
             context_x = context_x[:, :TEST_CONTEXT]

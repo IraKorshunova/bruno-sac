@@ -7,7 +7,7 @@ from nn.bruno import BrunoNet
 from utils.data_generator import GPCurvesReader
 from utils.plots import plot_functions, plot_learning_curves
 
-TRAIN = True
+TRAIN = False
 TRAINING_ITERATIONS = 100000
 MAX_CONTEXT_POINTS = 50
 PLOT_AFTER = 5000
@@ -18,6 +18,7 @@ NUM_LATENTS = 2
 PLOT_Y_LIMITS = (-2.2, 2.2)
 N_TEST_PLOTS = 10
 TEST_CONTEXT = [1, 10, 100]
+N_TEST_SAMPLES = 2500
 
 tf.reset_default_graph()
 tf.set_random_seed(317070)
@@ -43,7 +44,7 @@ loss = bruno_net.loss(data_train.query, data_train.target_y)
 
 # Get the predicted mean and variance at the target points for the testing set
 median, _ = bruno_net.test_median(data_test.query, n_context=TEST_CONTEXT)
-mean, std = bruno_net.test_sample_mean(data_test.query, n_context=TEST_CONTEXT)
+mean, std = bruno_net.test_sample_mean(data_test.query, n_context=TEST_CONTEXT, n_curves=N_TEST_SAMPLES)
 
 # Set up the optimizer and train step
 params = tf.trainable_variables(bruno_net.name)
@@ -83,7 +84,7 @@ with tf.Session() as sess:
 
         print('test')
         losses = []
-        for i in range(1000):
+        for i in range(100):
             loss_value, pred_y, target_y, whole_query = sess.run(
                 [loss, median, data_test.target_y, data_test.query])
             losses.append(loss_value)
@@ -108,8 +109,8 @@ with tf.Session() as sess:
         saver.restore(sess, tf.train.latest_checkpoint(SAVE_DIR))
 
         for it in range(N_TEST_PLOTS):
-            loss_value, pred_y, mean_y, std_y, target_y, whole_query = sess.run(
-                [loss, median, mean, std, data_test.target_y, data_test.query])
+            loss_value,  mean_y, std_y, target_y, whole_query = sess.run(
+                [loss, mean, std, data_test.target_y, data_test.query])
 
             (context_x, context_y), target_x = whole_query
 
